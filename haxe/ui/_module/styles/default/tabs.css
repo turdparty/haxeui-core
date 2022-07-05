@@ -184,7 +184,7 @@
 }
 
 .tabview > .tabview-content {
-    border: 1px solid $normal-border-color;
+    border: $normal-border-size solid $normal-border-color;
     padding: 8px;
     background-color: $secondary-background-color;
 }
@@ -192,6 +192,7 @@
 .tabview-content:disabled {
     border-color: $disabled-border-color;
 }
+
 /************************************************************************
 ** TABVIEW ALT STYLES
 *************************************************************************/
@@ -201,4 +202,8 @@
 
 .collapsible-labels .tabbar-button-selected .label {
     hidden: false;
+}
+
+.full-width-buttons .tabbar-button, .full-width-buttons .tabbar > .tabbar-contents {
+    width: 100%;
 }

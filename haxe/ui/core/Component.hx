@@ -1107,7 +1107,7 @@ class Component extends ComponentImpl implements IValidating {
     @:dox(group = "Style related properties and methods")
     private var classes:Array<String> = [];
 
-    public var cascadeActive:Bool = false;
+    private var cascadeActive:Bool = false;
     /**
      Adds a css style name to this component
     **/
@@ -1914,14 +1914,6 @@ class Component extends ComponentImpl implements IValidating {
                 unregisterEvent(MouseEvent.MOUSE_UP, onPointerEventsMouseUp);
             }
             handleFrameworkProperty("allowMouseInteraction", false);
-        }
-        
-        if (hasClass("listview") || hasClass("tableview") || hasClass("treeview")) {       
-            if (style.borderType == StyleBorderType.None) {
-                addClass("borderless");
-            } else {
-                removeClass("borderless");
-            }
         }
         
         if (_compositeBuilder != null) {

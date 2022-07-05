@@ -172,9 +172,9 @@ class ComponentMacros {
         };
         var c:ComponentInfo = buildComponentFromFile(builder, codeBuilder, resourcePath, buildData, "this", false);
         var superClass:String = builder.superClass.t.toString();
-        var rootType = ComponentClassMap.get(c.type);
-        if (superClass != rootType) {
-            //Context.warning("The super class of '" + builder.name + "' does not match the root node of '" + resourcePath + "' (" + superClass + " != " + rootType + ") - this may have unintended consequences", pos);
+        var rootType = ModuleMacros.resolveComponentClass(c.type);
+        if (haxe.ui.util.RTTI.hasSuperClass(builder.fullPath, rootType) == false) {
+            Context.warning('The class hierarchy of "${builder.fullPath}" does not contain the root node of "${resourcePath}" (${rootType}) - this may have unintended consequences', pos);
         }
 
         for (id in buildData.namedComponents.keys()) {
@@ -590,7 +590,7 @@ class ComponentMacros {
         return switch (e.expr) {
             case ENew(t, params):
                 var fullPath = t.pack.concat([t.name]).join(".");
-                var registeredClass = ComponentClassMap.get(fullPath);
+                var registeredClass = ModuleMacros.resolveComponentClass(fullPath);
                 var r = e;
                 if (registeredClass != null) {
                     r = { expr: ENew({ pack: ["haxe", "ui", "components"], name: "Button", params: t.params, sub: t.sub}, params), pos: e.pos};
@@ -623,12 +623,13 @@ class ComponentMacros {
             if (direction == null) {
                 direction = "horizontal"; // default to horizontal
             }
-            var directionalClassName = ComponentClassMap.get(direction + c.type);
+            var directionalClassName = ModuleMacros.resolveComponentClass(direction + c.type);
             if (directionalClassName == null) {
-                trace("WARNING: no direction class found for component: " + c.type + " (" + (direction + c.type.toLowerCase()) + ")");
+                trace("WARNING: no directional class found for component: " + c.type + " (" + (direction + c.type.toLowerCase()) + ")");
                 return id;
             }
 
+            var directionalClassInfo = new ClassBuilder(Context.getModule(directionalClassName)[0]); // we want to use get getModule (and therefore create a ref) to ensure macro order is determinate
             className = directionalClassName;
         }
         c.resolvedClassName = className;
@@ -775,8 +776,18 @@ class ComponentMacros {
                     propType: TypeMap.getTypeInfo(c.resolvedClassName, propName)
                 });
             } else {
-                var propExpr = macro $v{TypeConverter.convertFrom(propValue)};
-                builder.add(macro $i{varName}.$propName = $propExpr);
+                if (c.resolvedClassName != null) {
+                    var propType = null;
+                    var propInfo = haxe.ui.util.RTTI.getClassProperty(c.resolvedClassName, propName);
+                    if (propInfo != null) {
+                        propType = propInfo.propertyType;
+                    }
+                    var propExpr = macro $v{TypeConverter.convertTo(TypeConverter.convertFrom(propValue), $v{propType})};
+                    builder.add(macro $i{varName}.$propName = $propExpr);
+                } else {
+                    var propExpr = macro $v{TypeConverter.convertFrom(propValue)};
+                    builder.add(macro $i{varName}.$propName = $propExpr);
+                }
             }
         }
     }
