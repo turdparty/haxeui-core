@@ -1851,10 +1851,12 @@ class Component extends ComponentImpl implements IValidating {
         }
 
         if (style.percentWidth != null) {
+            _width = null;
             componentWidth = null;
             percentWidth = style.percentWidth;
         }
         if (style.percentHeight != null) {
+            _height = null;
             componentHeight = null;
             percentHeight = style.percentHeight;
         }
