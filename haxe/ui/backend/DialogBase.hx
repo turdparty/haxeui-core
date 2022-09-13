@@ -255,7 +255,7 @@ class DialogBase extends Box {
     }
 
     public override function addComponent(child:Component):Component {
-        if (child.hasClass("dialog-container")) {
+        if (child == dialogContainer) {
             return super.addComponent(child);
         }
         return dialogContent.addComponent(child);
@@ -337,6 +337,10 @@ class DialogBase extends Box {
     }
 
     public function centerDialogComponent(dialog:Dialog, validate:Bool = true) {
+        if (_isDisposed) {
+            return;
+        }
+        
         if (validate == true) {
             dialog.syncComponentValidation();
         }

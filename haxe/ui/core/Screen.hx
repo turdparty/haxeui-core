@@ -2,6 +2,7 @@ package haxe.ui.core;
 
 import haxe.ui.backend.ScreenImpl;
 import haxe.ui.core.Component;
+import haxe.ui.events.MouseEvent;
 import haxe.ui.events.UIEvent;
 import haxe.ui.focus.FocusManager;
 import haxe.ui.util.EventMap;
@@ -28,11 +29,18 @@ class Screen extends ScreenImpl {
     //***********************************************************************************************************
     private var _eventMap:EventMap;
 
+    public var currentMouseX:Float = 0;
+    public var currentMouseY:Float = 0;
+    
     public function new() {
         super();
         rootComponents = [];
 
         _eventMap = new EventMap();
+        registerEvent(MouseEvent.MOUSE_MOVE, function(e:MouseEvent) {
+            currentMouseX = e.screenX;
+            currentMouseY = e.screenY;
+        });
     }
 
     public override function addComponent(component:Component):Component {
@@ -89,10 +97,8 @@ class Screen extends ScreenImpl {
     }
     
     public function findComponentsUnderPoint<T:Component>(screenX:Float, screenY:Float, type:Class<T> = null):Array<Component> {
-        var copy = rootComponents.copy();
-        copy.reverse();
         var c:Array<Component> = [];
-        for (r in copy) {
+        for (r in rootComponents) {
             if (r.hitTest(screenX, screenY)) {
                 var match = true;
                 if (type != null && isOfType(r, type) == false) {
@@ -108,9 +114,7 @@ class Screen extends ScreenImpl {
     }
     
     public function hasComponentUnderPoint<T:Component>(screenX:Float, screenY:Float, type:Class<T> = null):Bool {
-        var copy = rootComponents.copy();
-        copy.reverse();
-        for (r in copy) {
+        for (r in rootComponents) {
             if (r.hasComponentUnderPoint(screenX, screenY, type) == true) {
                 return true;
             }

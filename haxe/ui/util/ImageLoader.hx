@@ -121,25 +121,66 @@ class ImageLoader {
         #else
 
         var http:haxe.Http = new haxe.Http(url);
+        var httpStatus = -1;
         
         #if (haxe_ver >= 4.0)
-        
         http.onBytes = function(data:Bytes) {
-            Toolkit.assets.imageFromBytes(data, callback);
+            if (data != null && data.length > 0) {
+                Toolkit.assets.imageFromBytes(data, callback);
+            } else {
+                if (httpStatus == 301 || httpStatus == 302) { // lets follow redirects
+                    var location = http.responseHeaders.get("location");
+                    if (location == null) {
+                        location = http.responseHeaders.get("Location");
+                    }
+                    if (location != null) {
+                        loadFromHttp(location, callback);
+                    } else {
+                        trace("WARNING: redirect encounters but no location header found (http status: " + httpStatus + ")");
+                        callback(null);
+                    }
+                } else {
+                    trace("WARNING: 0 length bytes found for '" + url + "' (http status: " + httpStatus + ")");
+                    callback(null);
+                }
+            }
         }
         
         #else
         
         http.onData = function(data:String) {
-            Toolkit.assets.imageFromBytes(Bytes.ofString(data), callback);
+            if (data != null && data.length > 0) {
+                Toolkit.assets.imageFromBytes(Bytes.ofString(data), callback);
+            } else {
+                if (httpStatus == 301 || httpStatus == 302) { // lets follow redirects
+                    var location = http.responseHeaders.get("location");
+                    if (location == null) {
+                        location = http.responseHeaders.get("Location");
+                    }
+                    if (location != null) {
+                        loadFromHttp(location, callback);
+                    } else {
+                        trace("WARNING: redirect encounters but no location header found (http status: " + httpStatus + ")");
+                        callback(null);
+                    }
+                } else {
+                    trace("WARNING: 0 length bytes found for '" + url + "' (http status: " + httpStatus + ")");
+                    callback(null);
+                }
+            }
         }
         
         #end
         
+        http.onStatus = function(status:Int) {
+            httpStatus = status;
+        }
+        
         http.onError = function(msg:String) {
-            trace(msg);
+            trace(msg + " (http status: " + httpStatus + ")");
             callback(null);
         }
+
         http.request();
 
         #end

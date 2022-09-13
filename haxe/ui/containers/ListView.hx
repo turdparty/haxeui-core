@@ -6,6 +6,7 @@ import haxe.ui.behaviours.Behaviour;
 import haxe.ui.behaviours.DataBehaviour;
 import haxe.ui.behaviours.DefaultBehaviour;
 import haxe.ui.behaviours.LayoutBehaviour;
+import haxe.ui.components.Label;
 import haxe.ui.components.VerticalScroll;
 import haxe.ui.constants.SelectionMode;
 import haxe.ui.containers.ScrollView.ScrollViewBuilder;
@@ -22,6 +23,7 @@ import haxe.ui.events.MouseEvent;
 import haxe.ui.events.ScrollEvent;
 import haxe.ui.events.UIEvent;
 import haxe.ui.layouts.VerticalVirtualLayout;
+import haxe.ui.styles.Style;
 import haxe.ui.util.MathUtil;
 import haxe.ui.util.Variant;
 
@@ -402,6 +404,11 @@ private class ListViewBuilder extends ScrollViewBuilder {
                 }
         }
     }
+    
+    public override function applyStyle(style:Style) {
+        super.applyStyle(style);
+        haxe.ui.macros.ComponentMacros.cascacdeStylesToList(Label, [color, fontName, fontSize, cursor, textAlign]);
+    }
 }
 
 //***********************************************************************************************************
@@ -417,7 +424,7 @@ private class DataSourceBehaviour extends DataBehaviour {
             dataSource.onDataSourceChange = function() {
                 _component.invalidateComponentLayout();
                 if (_firstPass == true) {
-                    _component.syncComponentValidation();
+                    //_component.syncComponentValidation();
                     _firstPass = false;
                     _component.invalidateComponentLayout();
                 }

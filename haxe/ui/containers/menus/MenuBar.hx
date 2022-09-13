@@ -102,7 +102,6 @@ private class Events extends haxe.ui.events.Events {
         if (target.selected == true) {
             showMenu(index);
         } else if (_currentButton != null) {
-            cast(_currentButton._internalEvents, ButtonEvents).lastMouseEvent = event;
             hideCurrentMenu();
         }
     }
@@ -292,6 +291,7 @@ private class Builder extends CompositeBuilder {
             button.text = menu.text;
             button.icon = menu.icon;
             button.tooltip = menu.tooltip;
+            button.hidden = child.hidden;
             LocaleManager.instance.cloneForComponent(child, button);
             _buttons.push(button);
             _menubar.addComponent(button);
@@ -327,6 +327,11 @@ private class Builder extends CompositeBuilder {
             var index = _menus.indexOf(menu);
             var button = _buttons[index];
             button.text = event.target.text;
+        } else if (event.data == "hidden") {
+            var menu = cast(event.target, Menu);
+            var index = _menus.indexOf(menu);
+            var button = _buttons[index];
+            button.hidden = event.target.hidden;
         }
     }
     

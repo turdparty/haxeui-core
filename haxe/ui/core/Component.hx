@@ -657,12 +657,6 @@ class Component extends ComponentImpl implements IValidating {
         }
 
         for (child in childComponents) {
-            if (callback(child) == false) {
-                return;
-            }
-        }
-
-        for (child in childComponents) {
             var cont = true;
             child.walkComponents(function(c) {
                 cont = callback(c);
@@ -826,9 +820,9 @@ class Component extends ComponentImpl implements IValidating {
 
     public function findComponentsUnderPoint<T:Component>(screenX:Float, screenY:Float, type:Class<T> = null):Array<Component> {
         var c:Array<Component> = [];
-        if (hitTest(screenX, screenY, true)) {
+        if (hitTest(screenX, screenY, false)) {
             for (child in childComponents) {
-                if (child.hitTest(screenX, screenY, true)) {
+                if (child.hitTest(screenX, screenY, false)) {
                     var match = true;
                     if (type != null && isOfType(child, type) == false) {
                         match = false;
@@ -845,12 +839,12 @@ class Component extends ComponentImpl implements IValidating {
 
     public function hasComponentUnderPoint<T:Component>(screenX:Float, screenY:Float, type:Class<T> = null):Bool {
         var b = false;
-        if (hitTest(screenX, screenY, true)) {
+        if (hitTest(screenX, screenY, false)) {
             if (type == null) {
                 return true;
             }
             for (child in childComponents) {
-                if (child.hitTest(screenX, screenY, true)) {
+                if (child.hitTest(screenX, screenY, false)) {
                     var match = true;
                     if (type != null && isOfType(child, type) == false) {
                         match = false;
@@ -1079,6 +1073,7 @@ class Component extends ComponentImpl implements IValidating {
         } else {
             show();
         }
+        dispatch(new UIEvent(UIEvent.PROPERTY_CHANGE, "hidden"));
         return value;
     }
 
@@ -1464,16 +1459,17 @@ class Component extends ComponentImpl implements IValidating {
     @:style                 public var color:Null<Color>;
     #end
     @:style                 public var backgroundColor:Null<Color>;
+    @:style                 public var backgroundColorEnd:Null<Color>;
     @:style                 public var backgroundImage:Variant;
     @:style                 public var borderColor:Null<Color>;
     @:style                 public var borderSize:Null<Float>;
     @:style                 public var borderRadius:Null<Float>;
 
-    @:style                 public var padding:Null<Float>;
-    @:style                 public var paddingLeft:Null<Float>;
-    @:style                 public var paddingRight:Null<Float>;
-    @:style                 public var paddingTop:Null<Float>;
-    @:style                 public var paddingBottom:Null<Float>;
+    @:style(layout)         public var padding:Null<Float>;
+    @:style(layout)         public var paddingLeft:Null<Float>;
+    @:style(layout)         public var paddingRight:Null<Float>;
+    @:style(layout)         public var paddingTop:Null<Float>;
+    @:style(layout)         public var paddingBottom:Null<Float>;
 
     @:style                 public var marginLeft:Null<Float>;
     @:style                 public var marginRight:Null<Float>;
@@ -1541,6 +1537,7 @@ class Component extends ComponentImpl implements IValidating {
     @:event(DragEvent.DRAG_END)         public var onDragEnd:DragEvent->Void;    
     
     @:event(AnimationEvent.START)       public var onAnimationStart:AnimationEvent->Void;
+    @:event(AnimationEvent.FRAME)       public var onAnimationFrame:AnimationEvent->Void;
     @:event(AnimationEvent.END)         public var onAnimationEnd:AnimationEvent->Void;
 
     /**
@@ -1818,6 +1815,8 @@ class Component extends ComponentImpl implements IValidating {
         return invalidate;
     }
 
+	@:noCompletion 
+    private var _pauseAnimationStyleChanges:Bool = false;
     private override function applyStyle(style:Style) {
         super.applyStyle(style);
 
@@ -1832,7 +1831,7 @@ class Component extends ComponentImpl implements IValidating {
                 }
             }
 
-            if (style.autoHeight != true && (style.initialHeight != null || style.initialPercentHeight != null) && (height <= 0 && percentHeight == null)) {
+            if ((style.initialHeight != null || style.initialPercentHeight != null) && (height <= 0 && percentHeight == null)) {
                 if (style.initialHeight != null) {
                     height = style.initialHeight;
                     _initialSizeApplied = true;
@@ -1877,11 +1876,13 @@ class Component extends ComponentImpl implements IValidating {
             hidden = style.hidden;
         }
 
-        if (style.animationName != null) {
-            var animationKeyFrames:AnimationKeyFrames = Toolkit.styleSheet.animations.get(style.animationName);
-            applyAnimationKeyFrame(animationKeyFrames, style.animationOptions);
-        } else if (componentAnimation != null) {
-            componentAnimation = null;
+        if (_pauseAnimationStyleChanges == false) {
+            if (style.animationName != null) {
+                var animationKeyFrames:AnimationKeyFrames = Toolkit.styleSheet.animations.get(style.animationName);
+                applyAnimationKeyFrame(animationKeyFrames, style.animationOptions);
+            } else if (componentAnimation != null) {
+                componentAnimation = null;
+            }
         }
 
         if (style.pointerEvents != null && style.pointerEvents != "none") {

@@ -1,11 +1,13 @@
 package haxe.ui.macros.helpers;
 
+import haxe.macro.ComplexTypeTools;
 import haxe.macro.Expr;
 import haxe.macro.Expr.ComplexType;
 import haxe.macro.Expr.Field;
 import haxe.macro.Expr.Access;
 import haxe.macro.Expr.Metadata;
 import haxe.macro.ExprTools;
+import haxe.ui.macros.helpers.ClassBuilder;
 
 class FieldBuilder {
     public var field:Field;
@@ -259,6 +261,26 @@ class FieldBuilder {
         return false;
     }
 
+    public var isComponent(get, null):Bool;
+    private function get_isComponent():Bool {
+        if (type == null) {
+            return false;
+        }
+        
+        #if (haxe_ver < 4)
+            switch (type) {
+                case TPath(p):
+                    if (p.name == "Component" || p.name == "String" || p.name == "Bool" || p.name == "Int" || p.name == "Variant") {
+                        return false;
+                    }
+                case _:    
+            }
+        #end
+        
+        var builder = new ClassBuilder(ComplexTypeTools.toType(type));
+        return builder.hasSuperClass("haxe.ui.core.Component");
+    }
+    
     public function hasMeta(name:String):Bool {
         for (m in field.meta) {
             if (m.name == name || m.name == ':${name}') {

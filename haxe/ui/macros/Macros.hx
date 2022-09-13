@@ -1,9 +1,10 @@
 package haxe.ui.macros;
 
-import haxe.ui.macros.ModuleMacros;
-import haxe.ui.util.RTTI;
 
 #if macro
+import haxe.ui.macros.ModuleMacros;
+import haxe.ui.util.EventInfo;
+import haxe.ui.util.RTTI;
 import haxe.macro.ComplexTypeTools;
 import haxe.macro.Context;
 import haxe.macro.Expr;
@@ -16,12 +17,34 @@ import haxe.ui.util.StringUtil;
 import haxe.ui.macros.ComponentMacros.NamedComponentDescription;
 import haxe.ui.macros.ComponentMacros.BuildData;
 import haxe.macro.ExprTools;
+
+using StringTools;
+
 #end
 
 @:access(haxe.ui.macros.ComponentMacros)
 class Macros {
     #if macro
 
+    macro static function buildEvent():Array<Field> {
+        var builder = new ClassBuilder(Context.getBuildFields(), Context.getLocalType(), Context.currentPos());
+        for (f in builder.fields) {
+            if (f.access.indexOf(AInline) != -1 && f.access.indexOf(AStatic) != -1) {
+                switch (f.kind) {
+                    case FVar(t, e):
+                        var eventName = ExprTools.toString(e);
+                        eventName = StringTools.replace(eventName, "\"", "");
+                        eventName = StringTools.replace(eventName, "'", "");
+                        eventName = eventName.toLowerCase();
+                        EventInfo.nameToType.set(eventName, builder.fullPath);
+                        EventInfo.nameToType.set("on" + eventName, builder.fullPath);
+                    case _:
+                }
+            }
+        }
+        return builder.fields;
+    }
+    
     macro static function build():Array<Field> {
         ModuleMacros.loadModules();
         
@@ -42,6 +65,12 @@ class Macros {
         return builder.fields;
     }
 
+    static function addConstructor(builder:ClassBuilder) {
+        if (builder.ctor == null) {
+            builder.addFunction("new", macro { super(); });
+        }
+    }
+    
     static function applyProperties(builder:ClassBuilder) {
         var propPrefix = builder.fullPath.toLowerCase();
         if (ModuleMacros.properties.exists(propPrefix + ".style")) {
@@ -66,11 +95,20 @@ class Macros {
             Context.error("Must have a superclass of haxe.ui.core.Component", Context.currentPos());
         }
 
+        addConstructor(builder);
         if (builder.ctor == null) {
             Context.error("A class building component must have a constructor", Context.currentPos());
         }
 
-        var xml = builder.getClassMetaValue("xml");
+        var xml:String = builder.getClassMetaValue("xml");
+        if (xml.indexOf("@:markup") != -1) { // means it was xml without quotes, lets extract and clean it up a little
+            xml = xml.replace("@:markup", "").trim();
+            xml = xml.substr(1, xml.length - 2);
+            xml = xml.replace("\\r", "\r");
+            xml = xml.replace("\\n", "\n");
+            xml = xml.replace("\\\"", "\"");
+            xml = xml.replace("\\'", "'");
+        }
         var codeBuilder = new CodeBuilder();
         var buildData:BuildData = { };
         ComponentMacros.buildComponentFromStringCommon(codeBuilder, xml, buildData);
@@ -256,6 +294,7 @@ class Macros {
         }
 
         if (f.expr != null) {
+            addConstructor(builder);
             builder.ctor.add(macro $i{f.name} = $e{f.expr}, AfterSuper);
         }
 
@@ -280,6 +319,7 @@ class Macros {
                 Context.error("Must have a superclass of haxe.ui.core.Component", Context.currentPos());
             }
 
+            addConstructor(builder);
             if (builder.ctor == null) {
                 Context.error("A class building component must have a constructor", Context.currentPos());
             }
@@ -421,6 +461,13 @@ class Macros {
                     newField = builder.addGetter(f.name, f.type, macro {
                         return behaviours.getDynamic($v{f.name});
                     }, f.access);
+                } else if (f.isComponent) {
+                    newField = builder.addGetter(f.name, f.type, macro {
+                        if (behaviours == null) {
+                            return $v{defVal};
+                        }
+                        return cast behaviours.get($v{f.name}).toComponent();
+                    }, f.access);
                 } else { // add a normal (Variant) getter
                     newField = builder.addGetter(f.name, f.type, macro {
                         if (behaviours == null) {
@@ -510,6 +557,10 @@ class Macros {
                     }
                     behaviours.call($v{f.name}, $i{arg0});
                 });
+            } else if (f.returnsComponent) { // special case for component calls, we will conver the variant to a component and then cast it
+                f.set(macro {
+                    return cast behaviours.call($v{f.name}, $i{arg0}).toComponent();
+                });
             } else {
                 f.set(macro {
                     if (behaviours == null) {
@@ -566,7 +617,7 @@ class Macros {
         buildStyles(builder);
         buildBindings(builder);
 
-        if (builder.hasInterface("haxe.ui.core.IClonable")) {
+        if (builder.hasInterface("haxe.ui.core.IClonable") && !builder.isAbstractClass) {
             buildClonable(builder);
         }
 

@@ -5,7 +5,7 @@ import haxe.ui.behaviours.Behaviour;
 import haxe.ui.behaviours.DataBehaviour;
 import haxe.ui.behaviours.DefaultBehaviour;
 import haxe.ui.components.HorizontalScroll;
-import haxe.ui.components.TextField;
+import haxe.ui.components.Scroll;
 import haxe.ui.components.VerticalScroll;
 import haxe.ui.constants.Priority;
 import haxe.ui.constants.ScrollMode;
@@ -33,24 +33,27 @@ class ScrollView extends InteractiveComponent implements IScrollView {
     //***********************************************************************************************************
     // Public API
     //***********************************************************************************************************
-    @:clonable @:behaviour(Virtual)                                public var virtual:Bool;
-    @:clonable @:behaviour(ContentLayoutName, "vertical")          public var contentLayoutName:String;
-    @:clonable @:behaviour(ContentWidth)                           public var contentWidth:Null<Float>;
-    @:clonable @:behaviour(PercentContentWidth)                    public var percentContentWidth:Null<Float>;
-    @:clonable @:behaviour(ContentHeight)                          public var contentHeight:Null<Float>;
-    @:clonable @:behaviour(PercentContentHeight)                   public var percentContentHeight:Null<Float>;
-    @:clonable @:behaviour(HScrollPos)                             public var hscrollPos:Float;
-    @:clonable @:behaviour(HScrollMax)                             public var hscrollMax:Float;
-    @:clonable @:behaviour(HScrollPageSize)                        public var hscrollPageSize:Float;
-    @:clonable @:behaviour(VScrollPos)                             public var vscrollPos:Float;
-    @:clonable @:behaviour(VScrollMax)                             public var vscrollMax:Float;
-    @:clonable @:behaviour(VScrollPageSize)                        public var vscrollPageSize:Float;
-    @:clonable @:behaviour(ScrollModeBehaviour, ScrollMode.DRAG)   public var scrollMode:ScrollMode;
-    @:clonable @:behaviour(GetContents)                            public var contents:Component;
-    @:clonable @:behaviour(DefaultBehaviour)                       public var autoHideScrolls:Bool;
-    @:clonable @:behaviour(DefaultBehaviour, true)                 public var allowAutoScroll:Bool;
-    @:call(EnsureVisible)                               public function ensureVisible(component:Component):Void;
+    @:clonable @:behaviour(Virtual)                                 public var virtual:Bool;
+    @:clonable @:behaviour(ContentLayoutName, "vertical")           public var contentLayoutName:String;
+    @:clonable @:behaviour(ContentWidth)                            public var contentWidth:Null<Float>;
+    @:clonable @:behaviour(PercentContentWidth)                     public var percentContentWidth:Null<Float>;
+    @:clonable @:behaviour(ContentHeight)                           public var contentHeight:Null<Float>;
+    @:clonable @:behaviour(PercentContentHeight)                    public var percentContentHeight:Null<Float>;
+    @:clonable @:behaviour(HScrollPos)                              public var hscrollPos:Float;
+    @:clonable @:behaviour(HScrollMax)                              public var hscrollMax:Float;
+    @:clonable @:behaviour(HScrollPageSize)                         public var hscrollPageSize:Float;
+    @:clonable @:behaviour(VScrollPos)                              public var vscrollPos:Float;
+    @:clonable @:behaviour(VScrollMax)                              public var vscrollMax:Float;
+    @:clonable @:behaviour(VScrollPageSize)                         public var vscrollPageSize:Float;
+    @:clonable @:behaviour(ScrollModeBehaviour, ScrollMode.DRAG)    public var scrollMode:ScrollMode;
+    @:clonable @:behaviour(GetContents)                             public var contents:Component;
+    @:clonable @:behaviour(DefaultBehaviour)                        public var autoHideScrolls:Bool;
+    @:clonable @:behaviour(DefaultBehaviour, true)                  public var allowAutoScroll:Bool;
+    
+    @:call(EnsureVisible)                                           public function ensureVisible(component:Component):Void;
 
+    @:event(ScrollEvent.SCROLL)                                     public var onScroll:ScrollEvent->Void;
+    
     //***********************************************************************************************************
     // Validation
     //***********************************************************************************************************
@@ -520,10 +523,16 @@ class ScrollViewEvents extends haxe.ui.events.Events {
         if (hscroll != null && hscroll.hasEvent(UIEvent.CHANGE, onHScroll) == false) {
             hscroll.registerEvent(UIEvent.CHANGE, onHScroll);
         }
+        if (hscroll != null && hscroll.hasEvent(ScrollEvent.SCROLL, onHScrollScroll) == false) {
+            hscroll.registerEvent(ScrollEvent.SCROLL, onHScrollScroll);
+        }
 
         var vscroll:VerticalScroll = _scrollview.findComponent(VerticalScroll, false);
         if (vscroll != null && vscroll.hasEvent(UIEvent.CHANGE, onVScroll) == false) {
             vscroll.registerEvent(UIEvent.CHANGE, onVScroll);
+        }
+        if (vscroll != null && vscroll.hasEvent(ScrollEvent.SCROLL, onVScrollScroll) == false) {
+            vscroll.registerEvent(ScrollEvent.SCROLL, onVScrollScroll);
         }
 
         if (_scrollview.scrollMode == ScrollMode.DRAG || _scrollview.scrollMode == ScrollMode.INERTIAL) {
@@ -549,11 +558,13 @@ class ScrollViewEvents extends haxe.ui.events.Events {
         var hscroll:HorizontalScroll = _scrollview.findComponent(HorizontalScroll, false);
         if (hscroll != null) {
             hscroll.unregisterEvent(UIEvent.CHANGE, onHScroll);
+            hscroll.unregisterEvent(ScrollEvent.SCROLL, onHScrollScroll);
         }
 
         var vscroll:VerticalScroll = _scrollview.findComponent(VerticalScroll, false);
         if (vscroll != null) {
             vscroll.unregisterEvent(UIEvent.CHANGE, onVScroll);
+            vscroll.unregisterEvent(ScrollEvent.SCROLL, onVScrollScroll);
         }
 
         unregisterEvent(MouseEvent.MOUSE_DOWN, onMouseDown);
@@ -583,11 +594,19 @@ class ScrollViewEvents extends haxe.ui.events.Events {
         _target.dispatch(new ScrollEvent(ScrollEvent.CHANGE));
     }
 
+    private function onHScrollScroll(event:UIEvent) {
+        _target.dispatch(new ScrollEvent(ScrollEvent.SCROLL));
+    }
+
     private function onVScroll(event:UIEvent) {
         _scrollview.invalidateComponent(InvalidationFlags.SCROLL);
         _target.dispatch(new ScrollEvent(ScrollEvent.CHANGE));
     }
 
+    private function onVScrollScroll(event:UIEvent) {
+        _target.dispatch(new ScrollEvent(ScrollEvent.SCROLL));
+    }
+    
     private var _offset:Point;
     private static inline var INERTIAL_TIME_CONSTANT:Int = 325;
     private var _inertia:Inertia = null;
@@ -605,17 +624,11 @@ class ScrollViewEvents extends haxe.ui.events.Events {
         _lastMousePos = new Point(event.screenX, event.screenY);
 
         var componentOffset = _scrollview.getComponentOffset();
-        if (hscroll != null && hscroll.hitTest(event.screenX - componentOffset.x, event.screenY - componentOffset.y) == true) {
-            return;
-        }
-        if (vscroll != null && vscroll.hitTest(event.screenX - componentOffset.x, event.screenY - componentOffset.y) == true) {
-            return;
-        }
-        
-        // we want to disallow mouse scrolling if we are under a textfield as this stops selection of data in textfield
+        // we want to disallow mouse scrolling if we are under a textfield/textarea as this stops selection of data in textfield
+        // if we are under a scrollbar, lets let the scroll bar handle it (rather than scrollview intefering) 
         var under = _scrollview.findComponentsUnderPoint(event.screenX - componentOffset.x, event.screenY - componentOffset.y);
         for (c in under) {
-            if ((c is TextField)) {
+            if (c.hasTextInput() || (c is Scroll)) {
                 return;
             }
         }
@@ -878,10 +891,23 @@ class ScrollViewEvents extends haxe.ui.events.Events {
     private var _fadeTimer:Timer = null;
     @:access(haxe.ui.core.Component)
     private function onMouseWheel(event:MouseEvent) {
-        var vscroll:VerticalScroll = _scrollview.findComponent(VerticalScroll, false);
-        if (vscroll != null) {
+        // we'll default to vertical scrolling for the mouse wheel, however,
+        // if there is no vertical scrollbar we'll try to use horizontal
+        // scrolling instead - note that if the shiftkey is pressed
+        // we'll reverse that an look primarily to scroll horizontally
+        var primaryType:Class<Scroll> = VerticalScroll;
+        var secondaryType:Class<Scroll> = HorizontalScroll;
+        if (event.shiftKey) {
+            primaryType = HorizontalScroll;
+            secondaryType = VerticalScroll;
+        }
+        var scroll:Scroll = _scrollview.findComponent(primaryType, false);
+        if (scroll == null) {
+            scroll = _scrollview.findComponent(secondaryType, false);
+        }
+        if (scroll != null) {
             if (_scrollview.autoHideScrolls == true && _fadeTimer == null) {
-                vscroll.fadeIn();
+                scroll.fadeIn();
             }
             event.cancel();
             var amount = 50; // TODO: calculate this
@@ -889,9 +915,9 @@ class ScrollViewEvents extends haxe.ui.events.Events {
             amount = 2;
             #end
             if (event.delta > 0) {
-                vscroll.pos -= amount;
+                scroll.pos -= amount;
             } else if (event.delta < 0) {
-                vscroll.pos += amount;
+                scroll.pos += amount;
             }
             if (_scrollview.autoHideScrolls == true) {
                 if (_fadeTimer != null) {
@@ -899,7 +925,7 @@ class ScrollViewEvents extends haxe.ui.events.Events {
                     _fadeTimer = null;
                 }
                 _fadeTimer = new Timer(300, function() {
-                    vscroll.fadeOut();
+                    scroll.fadeOut();
                     _fadeTimer.stop();
                     _fadeTimer = null;
                 });
@@ -1184,8 +1210,18 @@ class ScrollViewBuilder extends CompositeBuilder {
             clipCY = _contents.componentClipRect.height;
         }
 
-        var rc:Rectangle = new Rectangle(Math.fround(xpos), Math.fround(ypos), Math.fround(clipCX), Math.fround(clipCY));
-        _contents.componentClipRect = rc;
+        var newClipRect:Rectangle = new Rectangle(Math.fround(xpos), Math.fround(ypos), Math.fround(clipCX), Math.fround(clipCY));
+        _contents.componentClipRect = newClipRect;
+        _contents.walkComponents(function(c) {
+            // we dont usually check see if a component has an event before dispatching it
+            // however, in this specific case we are going to, potentially, be disaptching
+            // a move event for many child components, so lets just not do that if we know
+            // the component isnt going to respond to that event anyway
+            if (c.hasEvent(UIEvent.MOVE)) {
+                c.dispatch(new UIEvent(UIEvent.MOVE));
+            }
+            return true;
+        });
     }
 
     public var virtualHorizontal(get, null):Bool;

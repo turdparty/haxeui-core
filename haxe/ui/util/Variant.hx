@@ -35,10 +35,10 @@ abstract Variant(VariantType) from VariantType {
             case VT_Float(s): Std.string(s);
             case VT_Bool(s): Std.string(s);
             case VT_Array(s): Std.string(s);
-            case VT_Component(s): Std.string(s);
-            case VT_DataSource(_): "";
+            case VT_Component(s): s == null ? null : "";
+            case VT_DataSource(s): s == null ? null : "";
             case VT_Date(s): Std.string(s);
-            case VT_ImageData(s): "";
+            case VT_ImageData(s): s == null ? null : "";
             default: throw "Variant Type Error";
         }
     }
@@ -469,44 +469,61 @@ abstract Variant(VariantType) from VariantType {
     // ************************************************************************************************************
     public var isNull(get, never):Bool;
     private function get_isNull():Bool {
-        return this == null || toString() == null;
+        if (this == null) {
+            return true;
+        }
+        return toString() == null;
     }
 
     public static function fromDynamic<T>(r:Dynamic):Variant {
         var v:Variant = null;
         if (r != null) {
-            if (containsOnlyDigits(r) && Math.isNaN(Std.parseFloat("" + r)) == false) {
-                if (Std.string(r).indexOf(".") != -1) {
-                    v = Std.parseFloat("" + r);
+            var unstringable = ((r is Component) || (r is ImageData) || (r is Array) || (r is DataSource));
+            if (unstringable == false) {
+                if (containsOnlyDigits(r) && Math.isNaN(Std.parseFloat("" + r)) == false) {
+                    if (Std.string(r).indexOf(".") != -1) {
+                        v = Std.parseFloat("" + r);
+                    } else {
+                        v = Std.parseInt("" + r);
+                    }
+                } else if ((("" + r) == "true" || (r + "") == "false")) {
+                    v = (("" + r) == "true");
+                } else if ((r is String)) {
+                    v = cast(r, String);
                 } else {
-                    v = Std.parseInt("" + r);
+                    #if hl
+                    v = null;
+                    #else
+                    v = r;
+                    #end
                 }
-            } else if ((("" + r) == "true" || (r + "") == "false")) {
-                v = (("" + r) == "true");
-            } else if ((r is String)) {
-                v = cast(r, String);
-            } else if ((r is Component)) {
-                v = cast(r, Component);
-            } else if ((r is DataSource)) {
-                v = cast r;
-            } else if ((r is Array)) {
-                v = cast r;
-            } else if ((r is Date)) {
-                v = cast(r, Date);
-            } else if ((r is ImageData)) {
-                v = cast(r, ImageData);
             } else {
-                #if hl
-                v = null;
-                #else
-                v = r;
-                #end
+                if ((r is Component)) {
+                    v = cast(r, Component);
+                } else if ((r is DataSource)) {
+                    v = cast r;
+                } else if ((r is Array)) {
+                    v = cast r;
+                } else if ((r is Date)) {
+                    v = cast(r, Date);
+                } else if ((r is ImageData)) {
+                    v = cast(r, ImageData);
+                } else {
+                    #if hl
+                    v = null;
+                    #else
+                    v = r;
+                    #end
+                }                
             }
         }
         return v;
     }
 
     private static function containsOnlyDigits(s:Dynamic):Bool {
+        if ((s is Component) || (s is ImageData) || (s is Array) || (s is DataSource)) {
+            return false;
+        }
         if ((s is Int) || (s is Float)) {
             return true;
         }

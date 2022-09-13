@@ -4,7 +4,7 @@
 .component {
 }
 
-.custom-component {
+.custom-component, .animation {
     width: auto;
     height: auto;
 }
@@ -45,6 +45,21 @@
 
 .default-background-solid {
     background-color: $solid-background-color;
+}
+
+/************************************************************************
+** GENERAL
+*************************************************************************/
+.text-tiny {
+    font-size: 10px;
+}
+
+.text-small {
+    font-size: 11px;
+}
+
+.text-normal {
+    font-size: 13px;
 }
 
 /************************************************************************

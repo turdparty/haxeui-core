@@ -48,6 +48,12 @@ class ModuleMacros {
             if (m.preloadList == "all") {
                 preloadAll = true;
             }
+            if (m.preloader != null) {
+                var p = m.preloader;
+                builder.add(macro
+                    haxe.ui.HaxeUIApp.instance.preloaderClass = cast Type.resolveClass($v{p})
+                );
+            }
 
             // add resources as haxe resources (plus prefix)
             #if resource_resolution_verbose
@@ -155,8 +161,8 @@ class ModuleMacros {
                 }
             }
             
-            for (is in m.actionInputSources) {
-                var className = is.className;
+            for (inputSource in m.actionInputSources) {
+                var className = inputSource.className;
                 var parts = className.split(".");
                 var name:String = parts.pop();
                 var t:TypePath = {
@@ -221,6 +227,8 @@ class ModuleMacros {
     }
 
     public static function resolveComponentClass(name:String):String {
+        populateDynamicClassMap();
+        
         name = name.toLowerCase();
         var resolvedClass = ComponentClassMap.get(name);
         if (resolvedClass != null) {
@@ -252,7 +260,11 @@ class ModuleMacros {
                                 if (StringTools.endsWith(file, ".hx") && !StringTools.startsWith(file, ".")) {
                                     var fileName:String = file.substr(0, file.length - 3);
                                     if (fileName.toLowerCase() == name) {
-                                        types = Context.getModule(c.classPackage + "." + fileName);
+                                        var pkg = c.classPackage + ".";
+                                        if (c.classPackage == ".") {
+                                            pkg = "";
+                                        }
+                                        types = Context.getModule(pkg + fileName);
                                         break;
                                     }
                                 }

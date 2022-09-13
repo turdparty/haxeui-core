@@ -1,9 +1,10 @@
 package haxe.ui.containers;
 
-import haxe.ui.events.UIEvent;
 import haxe.ui.behaviours.DataBehaviour;
 import haxe.ui.core.Component;
 import haxe.ui.core.CompositeBuilder;
+import haxe.ui.events.UIEvent;
+import haxe.ui.util.Variant;
 
 /**
  A `Box` component where only one child is visible at a time
@@ -14,9 +15,8 @@ class Stack extends Box {
     @:behaviour(SelectedIndex, -1)      public var selectedIndex:Int;
     @:behaviour(SelectedId)             public var selectedId:String;
     
-    public function new() {
-        super();
-    }
+    @:call(PrevPage)                    public function prevPage();
+    @:call(NextPage)                    public function nextPage();
 }
 
 //***********************************************************************************************************
@@ -59,12 +59,56 @@ private class SelectedId extends DataBehaviour {
     }
     
     private override function validateData() {
-        var builder:Builder = cast(_component._compositeBuilder, Builder);
-        
         var item = _component.findComponent(_value, Component, false);
         if (item != null) {
             _stack.selectedIndex = _component.getComponentIndex(item);
         }
+    }
+}
+
+@:dox(hide) @:noCompletion
+@:access(haxe.ui.core.Component)
+@:access(haxe.ui.containers.Builder)
+private class PrevPage extends DataBehaviour {
+    private var _stack:Stack;
+    
+    public function new(stack:Stack) {
+        super(stack);
+        _stack = stack;
+    }
+    
+    public override function call(param:Any = null):Variant {
+        var pageCount = _stack.numComponents;
+        var newIndex:Int = _stack.selectedIndex;
+        newIndex--;
+        if (newIndex < 0) {
+            newIndex = pageCount - 1;
+        }
+        _stack.selectedIndex = newIndex;
+        return null;
+    }
+}
+
+@:dox(hide) @:noCompletion
+@:access(haxe.ui.core.Component)
+@:access(haxe.ui.containers.Builder)
+private class NextPage extends DataBehaviour {
+    private var _stack:Stack;
+    
+    public function new(stack:Stack) {
+        super(stack);
+        _stack = stack;
+    }
+    
+    public override function call(param:Any = null):Variant {
+        var pageCount = _stack.numComponents;
+        var newIndex:Int = _stack.selectedIndex;
+        newIndex++;
+        if (newIndex > pageCount - 1) {
+            newIndex = 0;
+        }
+        _stack.selectedIndex = newIndex;
+        return null;
     }
 }
 

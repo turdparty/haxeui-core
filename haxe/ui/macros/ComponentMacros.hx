@@ -1,8 +1,9 @@
 package haxe.ui.macros;
 
-import haxe.macro.Expr;
 
 #if macro
+import haxe.macro.Expr;
+import haxe.ui.util.EventInfo;
 import haxe.macro.Context;
 import haxe.macro.ExprTools;
 import haxe.macro.TypeTools;
@@ -58,15 +59,19 @@ typedef BuildData = {
 }
 #end
 
+@:access(haxe.ui.macros.Macros)
 class ComponentMacros {
+    @:deprecated("'haxe.ui.macros.ComponentMacros.build' is deprecated, use 'haxe.ui.ComponentBuilder.build' instead")
     macro public static function build(resourcePath:String, params:Expr = null):Array<Field> {
         return buildCommon(resourcePath, params);
     }
     
+    @:deprecated("'haxe.ui.macros.ComponentMacros.buildComponent' is deprecated, use 'haxe.ui.ComponentBuilder.fromFile' instead")
     macro public static function buildComponent(filePath:String, params:Expr = null):Expr {
         return buildComponentCommon(filePath, params);
     }
 
+    @:deprecated("'haxe.ui.macros.ComponentMacros.buildComponentFromString' is deprecated, use 'haxe.ui.ComponentBuilder.fromString' instead")
     macro public  static function buildComponentFromString(source:String, params:Expr = null):Expr {
         return buildFromStringCommon(source, params);
     }
@@ -122,6 +127,42 @@ class ComponentMacros {
         return builder.expr;
     }
     
+    macro public static function cascacdeStylesToList(componentType:Expr, styleProperties:Expr = null):Expr {
+        if (styleProperties == null) {
+            return macro null;
+        }
+        
+        var stylePropertiesArray = MacroHelpers.exprToArray(styleProperties);
+        if (stylePropertiesArray == null || stylePropertiesArray.length == 0) {
+            return macro null;
+        }
+        
+        var builder = new CodeBuilder();
+        builder.add(macro var list = _component.findComponents($e{componentType}, 0xffffff));
+        
+        var propertyExprs = [];
+        for (prop in stylePropertiesArray) {
+            propertyExprs.push(macro {
+                if (c.customStyle.$prop != style.$prop) {
+                    c.customStyle.$prop = style.$prop;
+                    invalidate = true;
+                }
+            });
+        }
+        
+        builder.add(macro for (c in list) {
+            var invalidate = false;
+            
+            $b{propertyExprs}
+            
+            if (invalidate == true) {
+                c.invalidateComponentStyle();
+            }
+        });
+        
+        return builder.expr;
+    }
+    
     #if macro
     private static function buildFromStringCommon(source:String, params:Expr = null):Expr {
         var builder = new CodeBuilder();
@@ -156,12 +197,17 @@ class ComponentMacros {
             Context.error("Must have a superclass of haxe.ui.core.Component", Context.currentPos());
         }
 
+        Macros.addConstructor(builder);
         if (builder.ctor == null) {
             Context.error("A class building component must have a constructor", Context.currentPos());
         }
 
         var originalRes = resourcePath;
         resourcePath = MacroHelpers.resolveFile(resourcePath);
+        if (resourcePath == null) { // we couldnt find it relative to classpath roots, let see about relative to this class
+            var relativePath = haxe.io.Path.normalize(builder.pkg.join("/") + "/" + originalRes);
+            resourcePath = MacroHelpers.resolveFile(relativePath);
+        }
         if (resourcePath == null || sys.FileSystem.exists(resourcePath) == false) {
             Context.error('UI markup file "${originalRes}" not found', Context.currentPos());
         }
@@ -255,14 +301,7 @@ class ComponentMacros {
         
         if (buildRoot == false) {
             if (classBuilder.hasInterface("haxe.ui.core.IDataComponent") == true && c.data != null) {
-                var ds = new haxe.ui.data.DataSourceFactory<Dynamic>().fromString(c.dataString, haxe.ui.data.ArrayDataSource);
-                var dsVarName = 'ds_root';
-                builder.add(macro var $dsVarName = new haxe.ui.data.ArrayDataSource<Dynamic>());
-                for (i in 0...ds.size) {
-                    var item = ds.get(i);
-                    builder.add(macro $i{dsVarName}.add($v{item}));
-                }
-                builder.add(macro (this : haxe.ui.core.IDataComponent).dataSource = $i{dsVarName});
+                buildDataSourceCode(builder, c, 'ds_root', "this");
             }
             assignComponentProperties(builder, c, rootVarName, buildData);
         }
@@ -562,8 +601,14 @@ class ComponentMacros {
                 }
 
                 scriptBuilder.add(expr);
-                // TODO: typed "event" param based on event name
-                builder.add(macro $i{sh.generatedVarName}.registerEvent($v{event}, function(event:haxe.ui.events.UIEvent) { $e{scriptBuilder.expr} }));
+                var eventType = "haxe.ui.events.UIEvent";
+                if (EventInfo.nameToType.exists(sh.eventName)) {
+                    eventType = EventInfo.nameToType.get(sh.eventName);
+                }
+                var eventTypeParts = eventType.split(".");
+                var eventTypeName = eventTypeParts.pop();
+                var eventComplexType = ComplexType.TPath({pack: eventTypeParts, name: eventTypeName});
+                builder.add(macro $i{sh.generatedVarName}.registerEvent($v{event}, function(event:$eventComplexType) { $e{scriptBuilder.expr} }));
             }
         }
     }
@@ -657,14 +702,7 @@ class ComponentMacros {
         }
 
         if (classInfo.hasInterface("haxe.ui.core.IDataComponent") == true && c.data != null) {
-            var ds = new haxe.ui.data.DataSourceFactory<Dynamic>().fromString(c.dataString, haxe.ui.data.ArrayDataSource);
-            var dsVarName = 'ds${id}';
-            builder.add(macro var $dsVarName = new haxe.ui.data.ArrayDataSource<Dynamic>());
-            for (i in 0...ds.size) {
-                var item = ds.get(i);
-                builder.add(macro $i{dsVarName}.add($v{item}));
-            }
-            builder.add(macro ($i{componentVarName} : haxe.ui.core.IDataComponent).dataSource = $i{dsVarName});
+            buildDataSourceCode(builder, c, 'ds${id}', componentVarName);
         }
 
         if (c.id != null && buildData.namedComponents != null && useNamedComponents == true) {
@@ -707,6 +745,42 @@ class ComponentMacros {
         return childId;
     }
 
+    private static function buildDataSourceCode(builder:CodeBuilder, c:ComponentInfo, dsVarName:String, componentVarName:String) {
+        var ds = new haxe.ui.data.DataSourceFactory<Dynamic>().fromString(c.dataString, haxe.ui.data.ArrayDataSource);
+        builder.add(macro var $dsVarName = new haxe.ui.data.ArrayDataSource<Dynamic>());
+        for (i in 0...ds.size) {
+            var item = ds.get(i);
+            var hasExpression:Bool = false;
+            // lets first find out if any of the items are expressions
+            for (f in Reflect.fields(item)) {
+                var v = Std.string(Reflect.field(item, f));
+                if (StringTools.startsWith(v, "${") && StringTools.endsWith(v, "}")) {
+                    hasExpression = true;
+                    break;
+                }
+            }
+            
+            if (hasExpression) {
+                builder.add(macro var __item:Dynamic = {} );
+                for (f in Reflect.fields(item)) {
+                    var v = Reflect.field(item, f);
+                    var stringValue = Std.string(v);
+                    if (StringTools.startsWith(stringValue, "${") && StringTools.endsWith(stringValue, "}")) {
+                        stringValue = stringValue.substring(2, stringValue.length - 1);
+                        var expr = Context.parseInlineString(stringValue, Context.currentPos());
+                        builder.add(macro __item.$f = $e{expr});
+                    } else {
+                        builder.add(macro __item.$f = $v{v});
+                    }
+                }
+                builder.add(macro $i{dsVarName}.add($i{"__item"}));
+            } else {
+                builder.add(macro $i{dsVarName}.add($v{item}));
+            }
+        }
+        builder.add(macro ($i{componentVarName} : haxe.ui.core.IDataComponent).dataSource = $i{dsVarName});
+    }
+    
     private static function buildLayoutCode(builder:CodeBuilder, l:LayoutInfo, id:Int) {
         var className:String = LayoutClassMap.get(l.type.toLowerCase());
         if (className == null) {
