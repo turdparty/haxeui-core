@@ -423,9 +423,11 @@ private class ValueHelper {
         var textValue = value.text;
         var min = stepper.min;
         var max = stepper.max;
-        
-        textValue = StringTools.replace(textValue, ",", ".");
-        textValue = StringTools.replace(textValue, stepper.decimalSeparator, ".");
+
+        if (textValue != null) {
+            textValue = StringTools.replace(textValue, ",", ".");
+            textValue = StringTools.replace(textValue, stepper.decimalSeparator, ".");
+        }
         var parsedValue:Null<Float> = Std.parseFloat(textValue);
         
         var valid = StringUtil.countTokens(textValue, ".") <= 1;

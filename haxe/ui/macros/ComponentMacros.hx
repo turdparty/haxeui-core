@@ -2,9 +2,8 @@ package haxe.ui.macros;
 
 
 #if macro
-import haxe.macro.Expr;
-import haxe.ui.util.EventInfo;
 import haxe.macro.Context;
+import haxe.macro.Expr;
 import haxe.macro.ExprTools;
 import haxe.macro.TypeTools;
 import haxe.ui.core.ComponentClassMap;
@@ -19,6 +18,7 @@ import haxe.ui.parsers.ui.ComponentInfo;
 import haxe.ui.parsers.ui.ComponentParser;
 import haxe.ui.parsers.ui.LayoutInfo;
 import haxe.ui.parsers.ui.resolvers.FileResourceResolver;
+import haxe.ui.util.EventInfo;
 import haxe.ui.util.ExpressionUtil;
 import haxe.ui.util.SimpleExpressionEvaluator;
 import haxe.ui.util.StringUtil;
@@ -61,17 +61,17 @@ typedef BuildData = {
 
 @:access(haxe.ui.macros.Macros)
 class ComponentMacros {
-    @:deprecated("'haxe.ui.macros.ComponentMacros.build' is deprecated, use 'haxe.ui.ComponentBuilder.build' instead")
+    //@:deprecated("'haxe.ui.macros.ComponentMacros.build' is deprecated, use 'haxe.ui.ComponentBuilder.build' instead")
     macro public static function build(resourcePath:String, params:Expr = null):Array<Field> {
         return buildCommon(resourcePath, params);
     }
     
-    @:deprecated("'haxe.ui.macros.ComponentMacros.buildComponent' is deprecated, use 'haxe.ui.ComponentBuilder.fromFile' instead")
+    //@:deprecated("'haxe.ui.macros.ComponentMacros.buildComponent' is deprecated, use 'haxe.ui.ComponentBuilder.fromFile' instead")
     macro public static function buildComponent(filePath:String, params:Expr = null):Expr {
         return buildComponentCommon(filePath, params);
     }
 
-    @:deprecated("'haxe.ui.macros.ComponentMacros.buildComponentFromString' is deprecated, use 'haxe.ui.ComponentBuilder.fromString' instead")
+    //@:deprecated("'haxe.ui.macros.ComponentMacros.buildComponentFromString' is deprecated, use 'haxe.ui.ComponentBuilder.fromString' instead")
     macro public  static function buildComponentFromString(source:String, params:Expr = null):Expr {
         return buildFromStringCommon(source, params);
     }
@@ -107,7 +107,7 @@ class ComponentMacros {
         var propertyExprs = [];
         for (prop in stylePropertiesArray) {
             propertyExprs.push(macro {
-                if (c.customStyle.$prop != style.$prop) {
+                if (style.$prop != null  && c.customStyle.$prop != style.$prop) {
                     c.customStyle.$prop = style.$prop;
                     invalidate = true;
                 }
@@ -143,7 +143,7 @@ class ComponentMacros {
         var propertyExprs = [];
         for (prop in stylePropertiesArray) {
             propertyExprs.push(macro {
-                if (c.customStyle.$prop != style.$prop) {
+                if (style.$prop != null && c.customStyle.$prop != style.$prop) {
                     c.customStyle.$prop = style.$prop;
                     invalidate = true;
                 }
@@ -243,6 +243,19 @@ class ComponentMacros {
 
         buildBindings(codeBuilder, buildData);
         buildLanguageBindings(codeBuilder, buildData);
+        var bindFields = builder.getFieldsWithMeta("bind");
+        for (f in bindFields) {
+            for (n in 0...f.getMetaCount("bind")) { // single method can be bound to multiple events
+                var meta = f.getMetaByIndex("bind", n);
+                switch (meta.params) {
+                    case [{expr: EField(variable, field), pos: pos}]: // one param, lets assume binding to component prop
+                        Macros.buildPropertyBinding(builder, f, variable, field);
+                    case [param1]:
+                        Macros.buildPropertyBinding(builder, f, param1, "value"); // input component that has value
+                }
+                
+            }
+        }
         
         builder.ctor.add(codeBuilder, AfterSuper);
 
@@ -652,7 +665,7 @@ class ComponentMacros {
             return id;
         }
 
-        var className = ModuleMacros.resolveComponentClass(c.type);
+        var className = ModuleMacros.resolveComponentClass(c.type, c.namespace);
         if (className == null) {
             Context.warning("no class found for component: " + c.type, Context.currentPos());
             return id;
@@ -668,7 +681,7 @@ class ComponentMacros {
             if (direction == null) {
                 direction = "horizontal"; // default to horizontal
             }
-            var directionalClassName = ModuleMacros.resolveComponentClass(direction + c.type);
+            var directionalClassName = ModuleMacros.resolveComponentClass(direction + c.type, c.namespace);
             if (directionalClassName == null) {
                 trace("WARNING: no directional class found for component: " + c.type + " (" + (direction + c.type.toLowerCase()) + ")");
                 return id;
@@ -706,7 +719,8 @@ class ComponentMacros {
         }
 
         if (c.id != null && buildData.namedComponents != null && useNamedComponents == true) {
-            var rootClassName = ModuleMacros.resolveComponentClass(c.findRootComponent().type);
+            var rootComponentInfo = c.findRootComponent();
+            var rootClassName = ModuleMacros.resolveComponentClass(rootComponentInfo.type, rootComponentInfo.namespace);
             var rootClassInfo = new ClassBuilder(Context.getModule(rootClassName)[0]);
             if (rootClassInfo.hasField(c.id, true) == false) {
                 var varDescription = {

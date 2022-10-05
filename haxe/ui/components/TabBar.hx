@@ -69,6 +69,18 @@ class TabBarLayout extends DefaultLayout {
             right.top = (_component.height / 2) - (right.height / 2);
         }
     }
+
+    public override function calcAutoSize(exclusions:Array<Component> = null) {
+        var size = super.calcAutoSize();
+        var max:Float = 0;
+        for (b in _component.findComponents(TabBarButton)) {
+            if (b.height > max) {
+                max = b.height;
+            }
+        }
+        size.height = max;
+        return size;
+    }
 }
 
 //***********************************************************************************************************
@@ -400,6 +412,9 @@ private class Builder extends CompositeBuilder {
         button.addClass("tabbar-button");
         if (_tabbar.tabPosition == "bottom") {
             button.addClass(":bottom");
+        }
+        if (child.disabled == true) {
+            button.disabled = child.disabled;
         }
 
         button.id = child.id;

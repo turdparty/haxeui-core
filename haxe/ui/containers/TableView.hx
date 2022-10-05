@@ -128,7 +128,7 @@ private class Events extends ScrollViewEvents {
     }
 
     private function onScrollChange(e:ScrollEvent) {
-        //_tableview.invalidateComponentLayout();
+        _tableview.invalidateComponentLayout();
     }
 
     private function onRendererCreated(e:UIEvent) {
@@ -551,7 +551,7 @@ private class Layout extends VerticalVirtualLayout {
             header.removeClass("scrolling");
             header.invalidateComponent(true);
         }
-        var rc:Rectangle = new Rectangle(cast(_component, ScrollView).hscrollPos + 1, 1, usableWidth, header.height);
+        var rc:Rectangle = new Rectangle(cast(_component, ScrollView).hscrollPos + 0, 1, usableWidth, header.height);
         header.componentClipRect = rc;
 
         var data = findComponent("tableview-contents", Box, true, "css");
@@ -579,8 +579,12 @@ private class Layout extends VerticalVirtualLayout {
                 }
             }
 
+            var modifier = 0;
+            if (header.height > 0) {
+                modifier = 1;
+            }
             data.left = paddingLeft + borderSize;
-            data.top = header.top + header.height - 1;
+            data.top = header.top + header.height - modifier;
             data.componentWidth = header.width;
             //data.unlockLayout(true);
         }
